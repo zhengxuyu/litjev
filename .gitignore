@@ -21,3 +21,8 @@ build/
 *.pth
 models/
 .DS_Store
+
+# ViZDoom writes these beside the process and records episodes here.
+_vizdoom.ini
+_vizdoom/
+*.lmp

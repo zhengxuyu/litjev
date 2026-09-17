@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>LitJev · Doom Demo</title>
+  <link rel="stylesheet" href="/static/doom.css">
+  <script src="/static/doom.js" defer></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Lit<span>Jev</span></a>
+    <span class="tag">Doom Demo · 结构化状态输入</span>
+    <span class="spacer"></span>
+    <span id="scenario" class="pill">—</span>
+    <span id="health" class="pill">检查连接…</span>
+  </header>
+  <main>
+    <section class="intro">
+      <h1>它在玩 Doom，<em>没有生成一个答案 token</em>。</h1>
+      <p>关卡状态转成一段文字 · 一个 enum 字段 · 两次 forward · argmax 即动作</p>
+    </section>
+
+    <section class="bar">
+      <div class="bar-actions">
+        <button id="start" type="button">开始游戏</button>
+        <button id="stop" type="button" class="ghost">停止</button>
+      </div>
+      <span id="run-status">未开始</span>
+      <div class="bar-stats">
+        <div class="stat"><span>局</span><strong id="episode-count">—</strong></div>
+        <div class="stat"><span>步</span><strong id="step-count">—</strong></div>
+        <div class="stat"><span>输入 tokens</span><strong id="input-tokens">—</strong></div>
+        <div class="stat hero"><span>forward</span><strong id="forward-calls">—</strong></div>
+        <div class="stat hero"><span>生成 token</span><strong id="output-tokens">—</strong></div>
+      </div>
+    </section>
+
+    <div id="error" role="alert" hidden></div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head"><h2>01 / 画面</h2><span class="note">只给人看 · 不进入模型输入</span></div>
+        <div class="screen">
+          <img id="frame" alt="Doom 当前画面">
+          <div id="placeholder">点击「开始游戏」<br>模型读到的只有右下方那段文字，它看不见这张图。</div>
+        </div>
+        <div class="panel-head small"><h3>动作时间线</h3><span class="note" id="timeline-note">最近 48 步</span></div>
+        <div id="timeline" class="timeline"></div>
+        <div class="panel-head small"><h3>模型实际读到的内容</h3><span class="note">纯文本 · 无图像</span></div>
+        <div id="state-text" class="state-text"><div>等待第一帧…</div></div>
+      </section>
+
+      <section class="panel" aria-live="polite">
+        <div class="panel-head"><h2>02 / 决策</h2><span id="decision-time" class="mono">—</span></div>
+        <div class="chosen">
+          <div class="ring-wrap">
+            <svg viewBox="0 0 88 88" aria-hidden="true">
+              <circle class="ring-track" cx="44" cy="44" r="38"></circle>
+              <circle class="ring-value" id="ring" cx="44" cy="44" r="38"></circle>
+            </svg>
+            <div class="ring-label"><strong id="gamma">—</strong><span>γ</span></div>
+          </div>
+          <div class="chosen-text">
+            <span>本步动作</span>
+            <strong id="chosen">等待中</strong>
+          </div>
+        </div>
+        <div id="actions" class="actions"></div>
+        <div class="panel-head small"><h3>决策延迟</h3><span class="note" id="latency-note">—</span></div>
+        <canvas id="latency" aria-label="每步决策耗时曲线"></canvas>
+        <p class="note foot">概率未经校准：γ 是被选中动作的归一化概率，不是这一步走对了的经验正确率。同步模式下引擎等模型决定后才推进，所以决策慢不会丢帧。</p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

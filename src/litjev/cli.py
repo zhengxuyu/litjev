@@ -9,21 +9,19 @@ import numpy as np
 from litjev.calibration import CalibrationProfile, TemperatureCalibrator
 
 
-def serve():
-    import uvicorn
-
-    from litjev.api import create_app
-    from litjev.backend import ModelSettings, TransformersScorer
-    from litjev.decision import SchemaDecisionEngine
-
-    parser = argparse.ArgumentParser()
+def add_model_arguments(parser):
     parser.add_argument("--model", default="Qwen/Qwen3.8-27B")
     parser.add_argument("--revision", default="main")
     parser.add_argument("--dtype", choices=["bfloat16", "float16", "float32"], default="bfloat16")
     parser.add_argument("--device-map", default="auto")
     parser.add_argument("--calibration")
     parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
+    return parser
+
+
+def engine_factory(args):
+    from litjev.backend import ModelSettings, TransformersScorer
+    from litjev.decision import SchemaDecisionEngine
 
     def factory():
         profile = CalibrationProfile.load(args.calibration) if args.calibration else None
@@ -37,8 +35,53 @@ def serve():
             profile is not None,
         )
 
+    return factory
+
+
+def serve():
+    import uvicorn
+
+    from litjev.api import create_app
+
+    args = add_model_arguments(argparse.ArgumentParser()).parse_args()
     # One process owns one model; concurrent forwards are serialized in the backend.
-    uvicorn.run(create_app(factory), host="127.0.0.1", port=args.port, workers=1)
+    uvicorn.run(create_app(engine_factory(args)), host="127.0.0.1", port=args.port, workers=1)
+
+
+def doom():
+    """Serve the playground plus the Doom demo from one process and one loaded model."""
+    import uvicorn
+
+    from litjev.api import create_app
+    from litjev.doom.routes import attach_doom
+    from litjev.doom.session import DoomSettings
+
+    parser = add_model_arguments(
+        argparse.ArgumentParser(description="Play Doom through the decision layer")
+    )
+    parser.add_argument("--scenario", default="defend_the_center")
+    parser.add_argument("--tics", type=int, default=4, help="Game tics advanced per decision")
+    parser.add_argument("--resolution", default="RES_640X480")
+    parser.add_argument("--max-actors", type=int, default=6)
+    parser.add_argument("--record", help="Directory for .lmp episode recordings")
+    parser.add_argument("--window", action="store_true", help="Also open the native Doom window")
+    args = parser.parse_args()
+
+    app = create_app(engine_factory(args))
+    attach_doom(
+        app,
+        app.state.provide_engine,
+        DoomSettings(
+            scenario=args.scenario,
+            tics=args.tics,
+            resolution=args.resolution,
+            max_actors=args.max_actors,
+            window=args.window,
+            recording=args.record,
+        ),
+    )
+    print(f"Doom demo on http://127.0.0.1:{args.port}/doom")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, workers=1)
 
 
 def mmlu():

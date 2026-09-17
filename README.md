@@ -214,6 +214,50 @@ See [Slurm usage](docs/slurm.md) for configurable cluster launchers. Raw local
 experiment outputs are excluded from the public distribution because they contain
 machine paths, hostnames, and dataset text.
 
+## Doom demo
+
+`litjev-doom` plays [ViZDoom](https://github.com/Farama-Foundation/ViZDoom) through the same
+decision path as the playground. **The agent never sees the screen.** Each step reads the
+engine's symbolic state — health, ammunition, and the name, bearing and distance of every
+visible object — renders it as one text block, and submits a schema with a single `action`
+field. Its choices are single-token letters standing for the moves the scenario's buttons
+allow; the chosen letter maps back to a button vector. No answer tokens are generated.
+
+```bash
+uv sync --locked --extra doom
+uv run --locked litjev-doom --model Qwen/Qwen3.8-27B
+```
+
+Open **http://127.0.0.1:8000/doom** and press start. The page shows the frame each decision was
+made on, the exact text the model received, and the probability the output head assigned to
+every move. The playground and the `/v1/*` endpoints stay available on the same port and share
+the one loaded model.
+
+Options: `--scenario` (default `defend_the_center`), `--tics` per decision, `--resolution`,
+`--max-actors`, `--record DIR`, `--window`, plus every option `litjev` accepts. Scenarios come
+from the installed ViZDoom package, which ships Freedoom assets; no original Doom WAD is needed.
+
+The game runs in ViZDoom's synchronous `PLAYER` mode, so it waits for each decision and slow
+inference never drops frames. `--record DIR` writes one `.lmp` per episode. Those replay at full
+speed and at any resolution, which is the practical way to capture video of a run that was
+played slower than real time:
+
+```python
+game.replay_episode("recordings/episode-000.lmp")
+while not game.is_episode_finished():
+    game.advance_action()
+```
+
+Small checkpoints run the same path, which is enough to develop against without a GPU host.
+On an Apple M-series laptop (48 GB unified memory, `--device-map mps --dtype float16`),
+`Qwen/Qwen3-4B` produced warm decisions in roughly 0.17–0.18 s from prompts of about 235 input
+tokens in `defend_the_center`. That is one observation of this loop on one machine, not a latency
+guarantee, and small checkpoints are not a supported accuracy target.
+
+Limits: input is text only, so nothing in this demo reads pixels; `labels` reports what the
+engine considers visible, which is not identical to what a human would notice on screen; and
+play quality is not evaluated here against any baseline.
+
 ## Development
 
 ```bash

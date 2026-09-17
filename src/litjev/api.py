@@ -61,12 +61,18 @@ def create_app(engine_factory):
     def playground():
         return FileResponse(static_dir / "index.html")
 
+    def provide_engine():
+        # lru_cache alone may execute its factory twice on concurrent cold requests.
+        with load_lock:
+            return get_engine()
+
+    # Lets attached demos share this process's single loaded model.
+    app.state.provide_engine = provide_engine
+
     def evaluate(state, schema):
         try:
             started = perf_counter()
-            # lru_cache alone may execute its factory twice on concurrent cold requests.
-            with load_lock:
-                engine = get_engine()
+            engine = provide_engine()
             ready = perf_counter()
             result = asdict(engine.decide(state, schema))
             finished = perf_counter()
