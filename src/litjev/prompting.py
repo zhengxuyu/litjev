@@ -29,4 +29,19 @@ def question_suffix(question, codes):
         )
     ]
     body = {"type": question.type, "instructions": question.instructions, "options": options}
-    return "Question: " + json.dumps(body, ensure_ascii=False, allow_nan=False) + "\nAnswer:"
+    return "Question: " + json.dumps(body, ensure_ascii=False, allow_nan=False)
+
+
+def render_question_branch(tokenizer, question, codes):
+    """Open a user question after the closed shared-state turn, then an answer turn."""
+    history = build_decision_messages("")
+    prefix = tokenizer.apply_chat_template(
+        history, tokenize=False, add_generation_prompt=False, enable_thinking=False
+    )
+    full = tokenizer.apply_chat_template(
+        history + [{"role": "user", "content": question_suffix(question, codes)}],
+        tokenize=False, add_generation_prompt=True, enable_thinking=False,
+    )
+    if not full.startswith(prefix):
+        raise ValueError("Chat template does not support an append-only user question branch")
+    return full[len(prefix):] + "Answer:"

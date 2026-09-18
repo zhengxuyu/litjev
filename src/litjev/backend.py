@@ -77,7 +77,7 @@ class TransformersScorer:
             inputs = self.processor.apply_chat_template(
                 messages,
                 tokenize=True,
-                add_generation_prompt=True,
+                add_generation_prompt=False,
                 enable_thinking=False,
                 return_dict=True,
                 return_tensors="pt",

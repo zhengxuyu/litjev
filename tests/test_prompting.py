@@ -5,6 +5,17 @@ from litjev.schema import Choice, DecisionSchema
 from litjev.slots import compile_slots
 
 
+def test_question_is_user_content_and_answer_is_assistant_content():
+    compiled = compile_slots(ImageTokenizer(), "scene", DecisionSchema({
+        "action": Choice(instructions="Choose", criteria={"left": None, "right": None})
+    }))
+    assert "<assistant>" not in compiled.prefix_text
+    suffix = compiled.slot_texts[0]
+    assert suffix.startswith("<user>Question:")
+    assert suffix.endswith("</end><assistant>Answer:")
+    assert suffix.index("Question:") < suffix.index("<assistant>")
+
+
 def test_question_ids_and_other_questions_never_enter_branch():
     schema = DecisionSchema(
         {

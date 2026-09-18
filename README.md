@@ -158,7 +158,7 @@ If you use LitJev in research or a project, please cite it
   author  = {{ZhengxuYu}},
   title   = {LitJev: A Jev Decision Layer for Off-the-Shelf LLMs},
   year    = {2026},
-  version = {0.1.0},
+  version = {0.1.1},
   url     = {https://github.com/zhengxuyu/litjev}
 }
 ```

@@ -21,6 +21,7 @@ class ImageTokenizer(TinyTokenizer):
 
 class TinyProcessor:
     def apply_chat_template(self, messages, **kwargs):
+        assert kwargs["add_generation_prompt"] is False
         assert messages[-1]["content"][1]["type"] == "image"
         pixels = np.asarray(messages[-1]["content"][1]["image"])
         return {

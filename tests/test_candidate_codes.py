@@ -7,6 +7,10 @@ from litjev.slots import compile_prefix_slots
 class CodeTokenizer:
     """Model a tokenizer whose spaced letter codes are single vocabulary entries."""
 
+    def apply_chat_template(self, messages, **kwargs):
+        text = "".join(f"<{m['role']}>{m['content']}</end>" for m in messages)
+        return text + ("<assistant>" if kwargs.get("add_generation_prompt") else "")
+
     def encode(self, text, **kwargs):
         head, marker, tail = text.rpartition("Answer:")
         prefix = [ord(c) for c in head + marker]

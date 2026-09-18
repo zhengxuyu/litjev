@@ -38,6 +38,7 @@ def test_attribution_and_citation_are_present():
     assert "Copyright 2026 ZhengxuYu" in (ROOT / "NOTICE").read_text()
     citation = (ROOT / "CITATION.cff").read_text()
     assert 'license: Apache-2.0' in citation
-    assert 'version: "0.1.0"' in citation
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert f'version: "{project["version"]}"' in citation
     readme = (ROOT / "README.md").read_text()
     assert readme.rfind("## Citation") > readme.rfind("## License")

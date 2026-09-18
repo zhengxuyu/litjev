@@ -7,7 +7,7 @@ authors:
     website: "https://github.com/zhengxuyu"
 repository-code: "https://github.com/zhengxuyu/litjev"
 url: "https://github.com/zhengxuyu/litjev"
-version: "0.1.0"
+version: "0.1.1"
 license: Apache-2.0
 abstract: >-
   (Unofficial) Turn any off-the-shelf LLM into a JEV-like decision layer.

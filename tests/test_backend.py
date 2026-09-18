@@ -11,8 +11,9 @@ class TinyTokenizer:
     pad_token_id = 0
     eos_token_id = 1
 
-    def apply_chat_template(self, *args, **kwargs):
-        return "prefix"
+    def apply_chat_template(self, messages, **kwargs):
+        text = "".join(f"<{m['role']}>{m['content']}</end>" for m in messages)
+        return text + ("<assistant>" if kwargs.get("add_generation_prompt") else "")
 
     def encode(self, text, **kwargs):
         # A simple boundary-preserving character tokenizer, no downloads.
@@ -90,7 +91,7 @@ def test_two_forwards_match_original_independent_branches(architecture):
     assert calls[0][0] == 1
     assert calls[1][0] == 10
     compiled = scorer._compile("state", schema)
-    assert all(text.endswith("\nAnswer:") for text in compiled.slot_texts)
+    assert all(text.endswith("</end><assistant>Answer:") for text in compiled.slot_texts)
     assert all('"q1"' not in text for text in compiled.slot_texts)
     evidence = scores[0].provenance
     assert evidence["module"] == "lm_head"

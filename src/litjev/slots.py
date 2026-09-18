@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from itertools import product
 from string import ascii_uppercase
 
-from litjev.prompting import build_decision_messages, question_suffix
+from litjev.prompting import build_decision_messages, render_question_branch
 
-SLOT_FORMAT = "isolated_question_codes_v2"
+SLOT_FORMAT = "user_question_codes_v3"
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ def compile_slots(tokenizer, state, schema, max_input_tokens=16384):
     prefix = tokenizer.apply_chat_template(
         build_decision_messages(state, schema),
         tokenize=False,
-        add_generation_prompt=True,
+        add_generation_prompt=False,
         enable_thinking=False,
     )
     prefix_ids = tokenizer.encode(prefix, add_special_tokens=False)
@@ -58,7 +58,7 @@ def compile_prefix_slots(tokenizer, schema, prefix_ids, prefix="", max_input_tok
     row_codes = []
     for field in schema.values():
         labels = codes[: len(field.choices)]
-        text = question_suffix(field, labels)
+        text = render_question_branch(tokenizer, field, labels)
         tokens = tokenizer.encode(text, add_special_tokens=False)
         choices = []
         for code in labels:

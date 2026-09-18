@@ -69,3 +69,10 @@ def test_local_text_client_does_not_construct_visual_state():
         "scene", {"a": {"type": "choice", "criteria": {"left": None}}}, None
     )
     assert result == {"ok": True}
+
+
+def test_doom_instructions_explain_attack_mechanics():
+    from litjev.games.doom import DoomButtonsEnv
+
+    assert "crosshair" in DoomButtonsEnv.instructions
+    assert "before firing" in DoomButtonsEnv.instructions

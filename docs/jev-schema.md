@@ -1,5 +1,11 @@
 # Jev schema migration
 
+Prompt format `user_question_codes_v3` closes the shared state user turn without
+opening an assistant turn. Each cached branch then supplies its question/options
+in a new user turn, followed by the assistant `Answer:` prefix. Questions remain
+independent; inference still uses two forwards and zero generated tokens.
+Calibration profiles from `isolated_question_codes_v2` must be refitted.
+
 Contract checked against the public [HTTP reference](https://docs.typesafe.ai/api),
 [structured entries](https://docs.typesafe.ai/primitives/advanced), and
 [Score reference](https://docs.typesafe.ai/primitives/score) on 2026-09-17.

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "litjev"
-version = "0.1.0"
+version = "0.1.1"
 description = "(Unofficial) Turn any off-the-shelf LLM into a JEV-like decision layer"
 readme = "README.md"
 license = "Apache-2.0"

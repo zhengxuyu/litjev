@@ -42,6 +42,8 @@ class DoomButtonsEnv(PixelEnv):
     instructions = (
         "Control Doom from the screenshot using one button. Survive, aim at visible enemies "
         "and attack them; navigate the corridor. Choose only the next controller button."
+        " Attack fires straight along the crosshair, not at enemies off to the sides."
+        " Turn to align an enemy with the crosshair before firing."
     )
 
     def __init__(
