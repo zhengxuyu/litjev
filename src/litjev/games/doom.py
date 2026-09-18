@@ -51,7 +51,15 @@ class DoomButtonsEnv(PixelEnv):
         scenario="deadly_corridor",
         resolution="640x480",
         recording_dir=None,
+        observation_mode="rgb",
     ):
+        if observation_mode not in {"rgb", "engine_text"}:
+            raise ValueError("Unsupported Doom observation mode")
+        self.observation_mode = observation_mode
+        if observation_mode == "engine_text":
+            self.instructions = self.instructions.replace(
+                "the screenshot", "the engine-assisted visible-scene description"
+            )
         if scenario not in {"deadly_corridor", "defend_the_center"}:
             raise ValueError("Unsupported Doom scenario")
         if resolution not in RESOLUTIONS:
@@ -78,8 +86,8 @@ class DoomButtonsEnv(PixelEnv):
             game.set_window_visible(False)
             game.set_screen_format(vzd.ScreenFormat.RGB24)
             game.set_screen_resolution(self.resolution)
-            game.set_labels_buffer_enabled(False)
-            game.set_depth_buffer_enabled(False)
+            game.set_labels_buffer_enabled(self.observation_mode == "engine_text")
+            game.set_depth_buffer_enabled(self.observation_mode == "engine_text")
             game.set_seed(int(self.np_random.integers(0, 2**31 - 1)))
             game.init()
             if self.recording_dir is None:
@@ -103,6 +111,16 @@ class DoomButtonsEnv(PixelEnv):
             raise
         return self.frame.copy(), {"scenario": self.scenario}
 
+    def describe_observation(self):
+        from litjev.games.doom_text import describe_buffers
+
+        if self.observation_mode != "engine_text" or self.ended:
+            raise RuntimeError("A live engine_text episode is required")
+        state = self.game.get_state()
+        if state is None:
+            raise RuntimeError("No live Doom state to describe")
+        return describe_buffers(state.labels, state.labels_buffer, state.depth_buffer)
+
     def step(self, action):
         self._check_action(action)
         vector = [index == int(action) for index in range(len(DOOM_ACTIONS))]
@@ -111,6 +129,12 @@ class DoomButtonsEnv(PixelEnv):
         timeout = self.game.get_episode_timeout()
         timed_out = finished and timeout > 0 and self.game.get_episode_time() >= timeout
         terminated = finished and (self.game.is_player_dead() or not timed_out)
+        outcome = (
+            "death" if self.game.is_player_dead() else
+            "timeout" if timed_out else
+            "success" if finished else
+            "step_limit" if self.steps + 1 >= self.max_steps else "running"
+        )
         state = self.game.get_state()
         if state is not None:
             self.frame = state.screen_buffer.copy()
@@ -123,6 +147,7 @@ class DoomButtonsEnv(PixelEnv):
             {
                 "game_tics": self.game.get_episode_time(),
                 "terminal_frame_unavailable": state is None,
+                "outcome": outcome,
             },
             timed_out=timed_out,
         )

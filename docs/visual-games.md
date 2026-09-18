@@ -205,3 +205,27 @@ Tests cover the Gymnasium contract, deterministic seeds, real headless Doom, che
 keypresses/truncation, shared policy mapping, image validation, and trace escaping.
 A tiny randomly initialized Qwen verifies that image-cache readouts match full
 inputs, different pixels affect logits, and text behavior remains unchanged.
+# Engine-assisted Doom text observations
+
+Use `--observation engine_text` to feed Qwen a deterministic text description
+instead of an image. This is a LitJev extension, not an upstream jevlike captioner.
+ViZDoom label masks supply visible object names and horizontal screen positions;
+depth-buffer pixels supply per-object and left/center/right median raw depths.
+No captioning model, training, world coordinates, full map, or expert action rules
+are used. At most 32 visible objects are listed, ordered by visible pixel area.
+Depth values are raw 8-bit readings, not metric distances or navigability labels.
+
+```sh
+uv run --locked --extra games litjev-play doom --model /path/to/qwen-checkpoint \
+  --observation engine_text --episodes 10 --max-steps 1000 --seed 0 \
+  --output runs/doom-text.json
+uv run --locked --extra games litjev-film runs/doom-text.json --output runs/doom-text.html
+```
+
+RGB remains the default and the Gym observation/render contract remains RGB.
+Text-mode traces are explicitly marked `engine_labels_depth_text`, retain the
+exact pre-action `observation_text`, and measure `description_ms` separately from
+model `latency_ms`. Frames remain in the replay but are **not sent to the model**.
+Compare the decision policies with care: this supplies engine-assisted semantics,
+not equivalent information to a raw-pixel perception benchmark. Episode summaries
+distinguish death, timeout, step limit and a live non-timeout scenario completion.
