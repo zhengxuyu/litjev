@@ -15,7 +15,7 @@ def serve():
 
     from litjev.api import create_app
     from litjev.backend import ModelSettings, TransformersScorer
-    from litjev.decision import SchemaDecisionEngine
+    from litjev.decision import DEFAULT_READOUT, READOUTS, SchemaDecisionEngine
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="Qwen/Qwen3.8-27B")
@@ -25,8 +25,25 @@ def serve():
     parser.add_argument("--calibration")
     parser.add_argument("--decision-head", help="Trained head (.safetensors) for /v1/systemtwo")
     parser.add_argument("--lambda", dest="lambda_", type=float, default=0.0)
+    # Under 'coded', every option is given a letter code (A, B, C, ...) before it
+    # reaches the model, and the answer is read off those codes. Option text must
+    # therefore carry no numbering of its own -- no "A.", "1)", "(b)" in front of
+    # it. The model would see two labels per option, the code and the caller's,
+    # and the caller's can pull the answer towards the wrong code.
+    parser.add_argument(
+        "--readout", choices=sorted(READOUTS), default=DEFAULT_READOUT,
+        help="how the fast mode reads its answer. The default scores each option's own "
+             "text; 'coded' scores single-token letter codes, and a head trained under it "
+             "has to be served under it. Under 'coded' the codes are added for you, so "
+             "options must not carry their own numbering (A., 1), (b)); it can mislead "
+             "the readout")
     parser.add_argument("--think-budget", type=int, default=0, help="0 disables default routing")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--backend", choices=("transformers", "sglang"), default="transformers",
+        help="sglang is far faster at the slow mode; verify it first with inference.verify")
+    parser.add_argument("--sglang-batch-questions", action="store_true",
+                        help="send a request's questions to the engine together")
     args = parser.parse_args()
 
     def factory():
@@ -41,20 +58,30 @@ def serve():
         if head is not None:
             head.metadata.check_serving(args.model, args.revision)
             layers = head.metadata.feature_layers
-        settings = ModelSettings(
-            args.model, args.revision, args.device_map, args.dtype, feature_layers=layers
-        )
-        scorer = TransformersScorer.load(settings)
+        if args.backend == "sglang":
+            from inference import SGLangScorer, SGLangSettings
+
+            scorer = SGLangScorer.load(SGLangSettings(
+                model_id=args.model, revision=args.revision, feature_layers=layers,
+                batch_questions=args.sglang_batch_questions))
+            device = "cpu"
+        else:
+            settings = ModelSettings(
+                args.model, args.revision, args.device_map, args.dtype, feature_layers=layers
+            )
+            scorer = TransformersScorer.load(settings)
+            device = scorer.model.get_input_embeddings().weight.device
         if head is not None:
             if head.metadata.hidden_size != scorer.hidden_size:
                 raise ValueError("Decision head hidden size does not match the model")
-            head.to(scorer.model.get_input_embeddings().weight.device)
+            head.to(device)
         return SchemaDecisionEngine(
             scorer,
             profile.temperature if profile else 1.0,
             args.model,
             profile is not None,
             head=head,
+            readout=args.readout,
             routing=RoutingPolicy(args.lambda_, args.think_budget),
         )
 

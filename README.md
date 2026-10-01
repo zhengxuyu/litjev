@@ -18,10 +18,40 @@ model's output head.
 > public Jev schema; internals, confidence values and performance are not identical.
 > Probabilities are not calibrated by default.
 
+## Updates
+
+- **2026-10-01** — LitJev now supports [SGLang](https://github.com/sgl-project/sglang)
+  as an inference backend: `litjev --backend sglang`. See
+  [Serving through SGLang](#serving-through-sglang) for usage.
+  LitJev 现已支持 SGLang 推理后端，使用说明见 [Serving through SGLang](#serving-through-sglang)。
+
+## How it works
+
+<p align="center">
+  <img src="docs/images/prefill-readout.svg" alt="Prefill the shared state, then append each option's own text after Answer:, sum the log-probabilities of its tokens, and take a softmax over the options" width="900">
+</p>
+
+Every request is answered in two steps, and neither generates text.
+
+1. **Prefill.** The shared `state` opens every prompt. On SGLang its cache is
+   computed once and reused; on transformers each question's option rows share
+   one batched pass.
+2. **Readout.** Each question lists its options as plain text and ends with
+   `Answer:`. Each option's own words are then appended and teacher-forced. The
+   summed log-probability of its tokens is that option's score, and a softmax
+   over the scores is the answer distribution. The typed JSON is built in code.
+
+Questions cannot see one another. Scoring the option's words, not a letter in
+front of it, means there is no label token whose prior pulls answers towards
+some positions. `--readout coded` restores the original single-token letter-code
+readout. Details in [how it works](docs/how-it-works.md).
+
 ## Supported models
 
 The full Qwen family is supported (Qwen3.x text and vision checkpoints, any size).
 The default and most-tested checkpoint is `Qwen/Qwen3.8-27B` on one H100 80 GB.
+Two inference backends are supported: Hugging Face transformers (the default) and
+[SGLang](#serving-through-sglang).
 Vision checkpoints are required for screenshot decisions. Other model families are
 not guaranteed to work.
 
@@ -39,6 +69,45 @@ Open **http://127.0.0.1:8000/**, load the example, and submit. The first request
 downloads and loads the model, which can take several minutes. Use
 `--model /path/to/checkpoint` for a local checkpoint and `--device-map cuda:0` to pin
 a GPU. Not yet published to PyPI; the commands above run this checkout.
+
+### Serving through SGLang
+
+LitJev also runs on [SGLang](https://github.com/sgl-project/sglang), under both
+readouts. The content readout sends each option row as token ids and reads its
+`input_token_logprobs`. The coded readout asks for the code logprobs through
+`token_ids_logprob`. In both, SGLang's radix prefix cache shares the prefill
+without any cache surgery. The slow-thinking mode of System Two gains the most, because
+its reasoning is decoded by SGLang's engine instead of transformers' generate loop.
+
+```bash
+uv pip install sglang     # not a litjev dependency; install it yourself
+uv run litjev --model Qwen/Qwen3.8-27B --backend sglang
+```
+
+The API, request and response are unchanged. Usage reports `input_tokens: 0`
+under the content readout, which does not count prompt tokens yet. Text states only for now; screenshot
+decisions still need the transformers backend. Add `--sglang-batch-questions` to
+send a request's questions to the engine in one batch. It is off by default
+because SGLang has open issues that can attach a hidden state to the wrong
+request in a batch (sgl-project/sglang#8066, #4997).
+
+Before relying on SGLang, check it against transformers. `inference.verify`
+compares the content readout (the two backends must choose the same option, and
+token counts must match) and the hidden state a System Two head reads. SGLang
+returns only the last layer, so heads must be trained on layer -1 to be served
+there.
+
+```bash
+# where transformers can load the model
+uv run python -m inference.verify --model <model> --layer -1 --reference-out ref.npz
+# where SGLang is installed
+uv run python -m inference.verify --model <model> --layer -1 --reference-in ref.npz \
+  --output verify.json --decision-head head.safetensors
+```
+
+The two backends round differently, so a question whose routing gain sits close
+to `lambda` can go one way on transformers and the other on SGLang. Compare
+numbers only within one backend.
 
 ## Using the API
 
@@ -131,7 +200,8 @@ between the two, since LitJev runs a different model; only the contract is share
   [how it works](docs/how-it-works.md#calibration).
 - **System Two (experimental)** — `POST /v1/systemtwo` lets a small trained decision
   head route individual questions to the backbone's own slow thinking when it expects
-  that to pay off. The backbone stays frozen. See [System Two](docs/system-two.md).
+  that to pay off. The backbone stays frozen. Heads are trained under the coded
+  readout, so serve them with `--readout coded`. See [System Two](docs/system-two.md).
 
 ## Documentation
 

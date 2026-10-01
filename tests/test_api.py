@@ -12,7 +12,9 @@ class FakeProvider:
 
 class FakeEngine(SchemaDecisionEngine):
     def __init__(self):
-        super().__init__(FakeProvider(), model_id="fake")
+        # Coded: FakeProvider implements `score` and not `score_options`, which is
+        # what these tests are about -- the API, not the readout.
+        super().__init__(FakeProvider(), model_id="fake", readout="coded")
 
 
 def test_playground_serves_without_loading_model():

@@ -274,7 +274,8 @@ class FakeHead:
 def test_engine_escalates_only_when_gain_exceeds_lambda():
     provider = FakeProvider()
     head = FakeHead([[0.2, 0.1, 0.6, 0.1], [0.8, 0.1, 0.05, 0.05]])
-    engine = SchemaDecisionEngine(provider, head=head, routing=RoutingPolicy(0.2, budget=32))
+    engine = SchemaDecisionEngine(provider, head=head, routing=RoutingPolicy(0.2, budget=32),
+                                    readout="coded")
     schema = two_questions()
     evaluation = engine.evaluate("state", schema)
     result = evaluation.result
@@ -296,14 +297,14 @@ def test_engine_escalates_only_when_gain_exceeds_lambda():
 def test_engine_without_routing_never_thinks_and_head_needs_hidden():
     provider = FakeProvider()
     head = FakeHead([[0.2, 0.1, 0.6, 0.1], [0.8, 0.1, 0.05, 0.05]])
-    engine = SchemaDecisionEngine(provider, head=head)
+    engine = SchemaDecisionEngine(provider, head=head, readout="coded")
     evaluation = engine.evaluate("state", two_questions())
     assert provider.think_calls == []
     assert evaluation.result.answers["q1"].confidence == pytest.approx(0.3)
     assert evaluation.result.usage.output_tokens == 0
     assert evaluation.diagnostics["forward_calls"] == 2
     with pytest.raises(ValueError):
-        SchemaDecisionEngine(provider, routing=RoutingPolicy(0.0, 8)).evaluate("s", two_questions())
+        SchemaDecisionEngine(provider, routing=RoutingPolicy(0.0, 8), readout="coded").evaluate("s", two_questions())
 
     class NoHidden(FakeProvider):
         def score(self, state, schema):
@@ -313,7 +314,7 @@ def test_engine_without_routing_never_thinks_and_head_needs_hidden():
             )
 
     with pytest.raises(RuntimeError):
-        SchemaDecisionEngine(NoHidden(), head=FakeHead([[1, 0, 0, 0]])).evaluate(
+        SchemaDecisionEngine(NoHidden(), head=FakeHead([[1, 0, 0, 0]]), readout="coded").evaluate(
             "s", two_questions()
         )
 
@@ -324,8 +325,8 @@ def test_engine_without_routing_never_thinks_and_head_needs_hidden():
 
     # A stats-only head needs no hidden states from the scorer at all.
     stats_engine = SchemaDecisionEngine(
-        NoHidden(), head=StatsOnlyHead([[0.7, 0.1, 0.1, 0.1], [0.2, 0.2, 0.5, 0.1]])
-    )
+        NoHidden(), head=StatsOnlyHead([[0.7, 0.1, 0.1, 0.1], [0.2, 0.2, 0.5, 0.1]]),
+        readout="coded")
     result = stats_engine.evaluate("s", two_questions()).result
     assert result.answers["q1"].confidence == pytest.approx(0.8)
 

@@ -75,6 +75,13 @@ class HeadMetadata:
     slot_format: str = SLOT_FORMAT
     feature_format: str = FEATURE_FORMAT
     training: dict = field(default_factory=dict)
+    # Which readout produced the distribution this head's features were built
+    # from. "coded" scores single-token letters; "content" scores each option's
+    # own text, and its softmax over option scores is a different quantity on a
+    # different scale. A head fitted to one and served under the other is reading
+    # numbers that do not mean what it learned they meant, and nothing in its
+    # output would say so. Defaults to coded, which is every head trained so far.
+    readout: str = "coded"
 
     @property
     def hidden_dim(self):
@@ -89,7 +96,7 @@ class HeadMetadata:
         """Width the MLP actually sees: PCA components (if any) plus the stats."""
         return (self.pca_dim if self.pca_dim else self.hidden_dim) + STATS_DIM
 
-    def check_serving(self, model_id, revision=None):
+    def check_serving(self, model_id, revision=None, readout=None):
         if self.model_id != model_id:
             raise ValueError("Decision head was trained for a different model")
         if revision is not None and self.revision != revision:
@@ -98,6 +105,14 @@ class HeadMetadata:
             raise ValueError("Decision head prompt format changed; retrain the head")
         if self.feature_format != FEATURE_FORMAT:
             raise ValueError("Decision head feature format changed; retrain the head")
+        if readout is not None and self.readout != readout:
+            raise ValueError(
+                f"this head's features were built from the {self.readout!r} readout and it "
+                f"is being served under {readout!r}. The two produce different quantities "
+                f"on different scales -- one a distribution over letter codes, the other a "
+                f"softmax over option scores -- so it would be reading numbers that do not "
+                f"mean what it learned they meant, and nothing in its output would say so. "
+                f"Train a head under {readout!r}, or serve this one under {self.readout!r}")
 
 
 class DecisionHead(nn.Module):

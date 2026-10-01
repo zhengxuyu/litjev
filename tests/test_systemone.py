@@ -15,7 +15,7 @@ class Provider:
 
 
 def test_standard_and_debug_share_canonical_answers():
-    engine = SchemaDecisionEngine(Provider(), model_id="test-qwen")
+    engine = SchemaDecisionEngine(Provider(), model_id="test-qwen", readout="coded")
     client = TestClient(create_app(lambda: engine))
     questions = {
         "pick": {
@@ -75,7 +75,7 @@ def test_ten_questions_in_one_call_and_unknown_model_rejected():
             return super().score(state, schema)
 
     client = TestClient(
-        create_app(lambda: SchemaDecisionEngine(CountingProvider(), model_id="qwen"))
+        create_app(lambda: SchemaDecisionEngine(CountingProvider(), model_id="qwen", readout="coded"))
     )
     payload = {
         "model": "litjev",

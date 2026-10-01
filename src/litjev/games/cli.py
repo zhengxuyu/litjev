@@ -31,7 +31,9 @@ def play():
 
         settings = ModelSettings(args.model, args.revision, args.device_map, args.dtype)
         client = LocalDecisionClient(
-            SchemaDecisionEngine(TransformersScorer.load(settings), model_id=args.model)
+            # Every games number so far was read out from letter codes.
+            SchemaDecisionEngine(TransformersScorer.load(settings), model_id=args.model,
+                                 readout="coded")
         )
     else:
         client = HttpDecisionClient(args.url or "http://127.0.0.1:8000")

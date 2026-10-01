@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <rect width="960" height="520" rx="12" fill="#ffffff"/>
+
+  <!-- Column headings -->
+  <text x="40" y="40" font-size="17" font-weight="700" fill="#1f2328">① Prefill — the shared state</text>
+  <text x="430" y="40" font-size="17" font-weight="700" fill="#1f2328">② Readout — score each option's own text</text>
+
+  <!-- Pass one -->
+  <rect x="40" y="70" width="340" height="64" rx="8" fill="#ddf4ff" stroke="#54aeff"/>
+  <text x="56" y="96" font-size="14" font-weight="600" fill="#0969da">system + state</text>
+  <text x="56" y="118" font-size="13" fill="#1f2328">"my order arrived broken, replace it…"</text>
+
+  <line x1="210" y1="134" x2="210" y2="172" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="222" y="158" font-size="12" fill="#57606a">one forward pass</text>
+
+  <rect x="40" y="176" width="340" height="64" rx="8" fill="#fff8c5" stroke="#d4a72c"/>
+  <text x="56" y="202" font-size="14" font-weight="600" fill="#7d4e00">KV cache of the shared prefix</text>
+  <text x="56" y="224" font-size="13" fill="#1f2328">on SGLang, computed once and reused by every row</text>
+
+  <rect x="40" y="276" width="340" height="200" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="56" y="302" font-size="14" font-weight="600" fill="#1f2328">Why option text, not letters</text>
+  <text x="56" y="326" font-size="13" fill="#1f2328">A letter code is a token with a prior of</text>
+  <text x="56" y="344" font-size="13" fill="#1f2328">its own, so answers drift towards some</text>
+  <text x="56" y="362" font-size="13" fill="#1f2328">positions. Scoring the option's words</text>
+  <text x="56" y="380" font-size="13" fill="#1f2328">leaves no label to prefer.</text>
+  <text x="56" y="408" font-size="13" fill="#1f2328">transformers: the k rows go in one batched</text>
+  <text x="56" y="426" font-size="13" fill="#1f2328">pass. SGLang: one request per row, as</text>
+  <text x="56" y="444" font-size="13" fill="#1f2328">token ids; the radix prefix cache skips</text>
+  <text x="56" y="462" font-size="13" fill="#1f2328">the shared part.</text>
+
+  <!-- Question prefix -->
+  <path d="M380,208 C405,208 405,102 430,102" fill="none" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="434" y="70" width="486" height="64" rx="8" fill="#ffffff" stroke="#8c959f"/>
+  <text x="448" y="94" font-size="13" font-weight="600" fill="#1f2328">+ one question, its options listed as plain text</text>
+  <text x="448" y="118" font-size="12.5" fill="#1f2328" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">Question: What does the customer want?  Options: … Answer:</text>
+
+  <!-- Fan to rows -->
+  <line x1="470" y1="134" x2="470" y2="166" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="482" y="156" font-size="12" fill="#57606a">one row per option, teacher-forced: nothing is sampled</text>
+
+  <!-- Rows -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5">
+    <rect x="434" y="172" width="300" height="40" rx="6" fill="#ffffff" stroke="#8c959f"/>
+    <text x="448" y="197" fill="#57606a">…Answer:<tspan dx="8" fill="#0969da" font-weight="700">money back</tspan></text>
+    <rect x="434" y="220" width="300" height="40" rx="6" fill="#ffffff" stroke="#8c959f"/>
+    <text x="448" y="245" fill="#57606a">…Answer:<tspan dx="8" fill="#0969da" font-weight="700">a replacement</tspan></text>
+    <rect x="434" y="268" width="300" height="40" rx="6" fill="#ffffff" stroke="#8c959f"/>
+    <text x="448" y="293" fill="#57606a">…Answer:<tspan dx="8" fill="#0969da" font-weight="700">just information</tspan></text>
+
+    <line x1="734" y1="192" x2="764" y2="192" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+    <line x1="734" y1="240" x2="764" y2="240" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+    <line x1="734" y1="288" x2="764" y2="288" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+    <text x="772" y="197" fill="#1f2328">Σ log p = −4.1</text>
+    <text x="772" y="245" fill="#1f2328" font-weight="700">Σ log p = −2.3</text>
+    <text x="772" y="293" fill="#1f2328">Σ log p = −5.6</text>
+  </g>
+
+  <!-- Softmax -->
+  <line x1="840" y1="304" x2="840" y2="332" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="852" y="324" font-size="12" fill="#57606a">softmax</text>
+  <rect x="434" y="338" width="486" height="64" rx="8" fill="#dafbe1" stroke="#4ac26b"/>
+  <text x="448" y="362" font-size="13" font-weight="600" fill="#1a7f37">intent: replace  ✓</text>
+  <text x="448" y="386" font-size="12.5" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">refund 0.14 · replace 0.83 · info 0.03</text>
+
+  <!-- Footnote -->
+  <text x="434" y="434" font-size="13" fill="#1f2328">Every question repeats step ② on the same state and never sees the</text>
+  <text x="434" y="452" font-size="13" fill="#1f2328">others. The score is the log-probability of the option's own tokens,</text>
+  <text x="434" y="470" font-size="13" fill="#1f2328">summed: read off the model, never generated or parsed.</text>
+  <text x="434" y="498" font-size="12" fill="#57606a">--readout coded scores one letter code per option at "Answer:" instead.</text>
+</svg>
