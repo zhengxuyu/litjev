@@ -20,7 +20,8 @@ class LocalDecisionClient:
     def decide(self, state, schema, image):
         return asdict(
             self.engine.evaluate(
-                VisualState(state, Image.fromarray(image)), DecisionSchema.from_mapping(schema)
+                VisualState(state, Image.fromarray(image)) if image is not None else state,
+                DecisionSchema.from_mapping(schema),
             )
         )
 
@@ -32,16 +33,12 @@ class HttpDecisionClient:
         self.model_id = None
 
     def decide(self, state, schema, image):
+        payload = {"state": state, "model": "litjev", "questions": schema}
+        if image is not None:
+            payload["image"] = encode_image(image)
         request = urllib.request.Request(
             self.url,
-            data=json.dumps(
-                {
-                    "state": state,
-                    "model": "litjev",
-                    "questions": schema,
-                    "image": encode_image(image),
-                }
-            ).encode(),
+            data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
@@ -79,11 +76,15 @@ class LitJevPolicy:
         }
 
     def decide(self, observation):
-        # Only the RGB screen and static task instructions enter the model. No info dict.
-        if observation.dtype != np.uint8 or observation.ndim != 3 or observation.shape[-1] != 3:
-            raise ValueError("Policy requires an RGB uint8 observation")
+        if isinstance(observation, str):
+            state = {"task": self.instructions, "observation": observation}
+            image = None
+        else:
+            if observation.dtype != np.uint8 or observation.ndim != 3 or observation.shape[-1] != 3:
+                raise ValueError("Policy requires an RGB uint8 observation or scene text")
+            state, image = self.instructions, observation
         started = time.perf_counter()
-        evaluation = self.client.decide(self.instructions, self.schema, observation)
+        evaluation = self.client.decide(state, self.schema, image)
         result = evaluation["result"]
         diagnostics = evaluation["diagnostics"]
         elapsed = time.perf_counter() - started

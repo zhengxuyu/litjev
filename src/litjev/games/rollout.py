@@ -3,6 +3,7 @@
 import time
 from dataclasses import asdict
 
+from litjev.games.doom_text import OBSERVATION_KIND
 from litjev.vision import encode_image
 
 TRACE_VERSION = "litjev.trace.v1"
@@ -13,12 +14,18 @@ def record_episode(env, policy, *, seed=0, episode=1):
     decisions = []
     running_reward = 0.0
     started = time.perf_counter()
+    text_mode = getattr(env.unwrapped, "observation_mode", "rgb") == "engine_text"
     while True:
         picture = encode_image(observation)
-        decision = policy.decide(observation)
+        description_start = time.perf_counter()
+        description = env.unwrapped.describe_observation() if text_mode else None
+        description_ms = (time.perf_counter() - description_start) * 1000
+        decision = policy.decide(description if text_mode else observation)
         next_observation, reward, terminated, truncated, info = env.step(decision.action)
         running_reward += reward
         row = asdict(decision)
+        if text_mode:
+            row.update(observation_text=description, description_ms=description_ms)
         row.update(
             episode=episode,
             step=len(decisions),
@@ -44,7 +51,7 @@ def record_episode(env, policy, *, seed=0, episode=1):
         "environment": env.spec.id if env.spec else type(env).__name__,
         "model": policy.client.model_id,
         "training": False,
-        "observation": "rgb_pixels_only",
+        "observation": OBSERVATION_KIND if text_mode else "rgb_pixels_only",
         "seed": seed,
         "actions": list(policy.action_names),
         "decisions": decisions,
