@@ -27,6 +27,11 @@ def serve():
     parser.add_argument("--lambda", dest="lambda_", type=float, default=0.0)
     parser.add_argument("--think-budget", type=int, default=0, help="0 disables default routing")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--backend", choices=("transformers", "sglang"), default="transformers",
+        help="sglang is far faster at the slow mode; verify it first with inference.verify")
+    parser.add_argument("--sglang-batch-questions", action="store_true",
+                        help="send a request's questions to the engine together")
     args = parser.parse_args()
 
     def factory():
@@ -41,14 +46,23 @@ def serve():
         if head is not None:
             head.metadata.check_serving(args.model, args.revision)
             layers = head.metadata.feature_layers
-        settings = ModelSettings(
-            args.model, args.revision, args.device_map, args.dtype, feature_layers=layers
-        )
-        scorer = TransformersScorer.load(settings)
+        if args.backend == "sglang":
+            from inference import SGLangScorer, SGLangSettings
+
+            scorer = SGLangScorer.load(SGLangSettings(
+                model_id=args.model, revision=args.revision, feature_layers=layers,
+                batch_questions=args.sglang_batch_questions))
+            device = "cpu"
+        else:
+            settings = ModelSettings(
+                args.model, args.revision, args.device_map, args.dtype, feature_layers=layers
+            )
+            scorer = TransformersScorer.load(settings)
+            device = scorer.model.get_input_embeddings().weight.device
         if head is not None:
             if head.metadata.hidden_size != scorer.hidden_size:
                 raise ValueError("Decision head hidden size does not match the model")
-            head.to(scorer.model.get_input_embeddings().weight.device)
+            head.to(device)
         return SchemaDecisionEngine(
             scorer,
             profile.temperature if profile else 1.0,

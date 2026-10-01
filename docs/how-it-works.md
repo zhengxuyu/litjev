@@ -17,6 +17,13 @@ answer tokens.
 4. **Typed response:** normalize candidate logits, select the maximum, and build
    JSON in code. No autoregressive answer generation is performed.
 
+![Pass one prefills the shared state; pass two reads each answer at Answer:](images/prefill-readout.svg)
+
+With `--backend sglang` the same two passes run on SGLang: each question is
+sent as the shared prefix plus its own suffix, the engine's prefix cache skips
+the prefix after the first question, and the candidate-code logprobs come back
+through `token_ids_logprob`. See [the README](../README.md#serving-through-sglang).
+
 Branches cannot see one another's questions or results. Renaming a question ID
 does not change its model input. This schema migration changes the prompt compared
 with the original catalog-based version, so historical accuracy, calibration profiles
@@ -72,4 +79,5 @@ authority for consequential actions.
   benchmarked here. CPU-only 27B inference is not a supported performance target.
 
 Server options: `--model`, `--revision`, `--dtype` (`bfloat16`, `float16`,
-`float32`), `--device-map`, `--port`, `--calibration`. Run `uv run litjev --help`.
+`float32`), `--device-map`, `--port`, `--calibration`, `--backend` (`transformers`,
+`sglang`). Run `uv run litjev --help`.

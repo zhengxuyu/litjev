@@ -48,7 +48,10 @@ litjev-play = "litjev.games.cli:play"
 litjev-film = "litjev.games.cli:film"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/litjev"]
+# inference/ is a package of its own rather than litjev.inference: it pulls in
+# SGLang, which litjev deliberately does not depend on, so a deployment that
+# serves through transformers never has to install it.
+packages = ["src/litjev", "src/inference"]
 
 [tool.hatch.build.targets.sdist]
 include = [

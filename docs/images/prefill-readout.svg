@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" width="960" height="470" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <rect width="960" height="470" rx="12" fill="#ffffff"/>
+
+  <!-- Column headings -->
+  <text x="40" y="40" font-size="17" font-weight="700" fill="#1f2328">① Pass one — prefill the shared state, once</text>
+  <text x="470" y="40" font-size="17" font-weight="700" fill="#1f2328">② Pass two — one step per question, read the answer</text>
+
+  <!-- Pass one: prompt tokens -->
+  <rect x="40" y="70" width="380" height="64" rx="8" fill="#ddf4ff" stroke="#54aeff"/>
+  <text x="56" y="96" font-size="14" font-weight="600" fill="#0969da">system + state</text>
+  <text x="56" y="118" font-size="13" fill="#1f2328">"Customer writes: my order arrived broken…"</text>
+
+  <line x1="230" y1="134" x2="230" y2="172" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="242" y="158" font-size="12" fill="#57606a">one forward pass</text>
+
+  <rect x="40" y="176" width="380" height="64" rx="8" fill="#fff8c5" stroke="#d4a72c"/>
+  <text x="56" y="202" font-size="14" font-weight="600" fill="#7d4e00">KV cache of the shared prefix</text>
+  <text x="56" y="224" font-size="13" fill="#1f2328">computed once, reused by every question</text>
+
+  <rect x="40" y="276" width="380" height="150" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="56" y="302" font-size="14" font-weight="600" fill="#1f2328">How the cache is shared</text>
+  <text x="56" y="328" font-size="13" fill="#1f2328">transformers backend: the cache is copied</text>
+  <text x="56" y="346" font-size="13" fill="#1f2328">into one branch per question by hand.</text>
+  <text x="56" y="374" font-size="13" fill="#1f2328">SGLang backend: each question is sent as</text>
+  <text x="56" y="392" font-size="13" fill="#1f2328">prefix + suffix; the radix prefix cache</text>
+  <text x="56" y="410" font-size="13" fill="#1f2328">recognises the prefix and skips it.</text>
+
+  <!-- Fan-out arrows -->
+  <path d="M420,208 C445,208 445,104 470,104" fill="none" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <path d="M420,208 C445,208 445,220 470,220" fill="none" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <path d="M420,208 C445,208 445,336 470,336" fill="none" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Branch 1 -->
+  <rect x="474" y="72" width="272" height="64" rx="8" fill="#ffffff" stroke="#8c959f"/>
+  <text x="488" y="96" font-size="13" font-weight="600" fill="#1f2328">intent: what does the customer want?</text>
+  <text x="488" y="118" font-size="12.5" fill="#1f2328" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">A refund B replace C info↵Answer:</text>
+  <line x1="746" y1="104" x2="772" y2="104" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="776" y="72" width="148" height="64" rx="8" fill="#dafbe1" stroke="#4ac26b"/>
+  <text x="788" y="94" font-size="12.5" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" A") 0.12</text>
+  <text x="788" y="110" font-size="12.5" font-weight="700" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" B") 0.85 ✓</text>
+  <text x="788" y="126" font-size="12.5" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" C") 0.03</text>
+
+  <!-- Branch 2 -->
+  <rect x="474" y="188" width="272" height="64" rx="8" fill="#ffffff" stroke="#8c959f"/>
+  <text x="488" y="212" font-size="13" font-weight="600" fill="#1f2328">urgency: how urgent is this?</text>
+  <text x="488" y="234" font-size="12.5" fill="#1f2328" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">A low B urgent C critical↵Answer:</text>
+  <line x1="746" y1="220" x2="772" y2="220" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="776" y="188" width="148" height="64" rx="8" fill="#dafbe1" stroke="#4ac26b"/>
+  <text x="788" y="210" font-size="12.5" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" A") 0.05</text>
+  <text x="788" y="226" font-size="12.5" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" B") 0.30</text>
+  <text x="788" y="242" font-size="12.5" font-weight="700" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" C") 0.65 ✓</text>
+
+  <!-- Branch 3 -->
+  <rect x="474" y="304" width="272" height="64" rx="8" fill="#ffffff" stroke="#8c959f"/>
+  <text x="488" y="328" font-size="13" font-weight="600" fill="#1f2328">escalate: hand to a human?</text>
+  <text x="488" y="350" font-size="12.5" fill="#1f2328" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">A yes B no↵Answer:</text>
+  <line x1="746" y1="336" x2="772" y2="336" stroke="#57606a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="776" y="304" width="148" height="64" rx="8" fill="#dafbe1" stroke="#4ac26b"/>
+  <text x="788" y="330" font-size="12.5" font-weight="700" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" A") 0.78 ✓</text>
+  <text x="788" y="350" font-size="12.5" fill="#1a7f37" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">P(" B") 0.22</text>
+
+  <!-- Footnote -->
+  <text x="474" y="404" font-size="13" fill="#1f2328">Each branch sees the state and its own question only.</text>
+  <text x="474" y="424" font-size="13" fill="#1f2328">The answer is the next-token distribution over the option</text>
+  <text x="474" y="444" font-size="13" fill="#1f2328">codes at "Answer:" — read, never generated or parsed.</text>
+</svg>

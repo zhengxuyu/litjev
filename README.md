@@ -18,10 +18,29 @@ model's output head.
 > public Jev schema; internals, confidence values and performance are not identical.
 > Probabilities are not calibrated by default.
 
+## How it works
+
+<p align="center">
+  <img src="docs/images/prefill-readout.svg" alt="Pass one prefills the shared state into a KV cache once; pass two runs one forward step per question and reads the answer as the next-token distribution over option codes at Answer:" width="900">
+</p>
+
+Every request is answered in two passes, and neither generates text.
+
+1. **Prefill.** The shared `state` is encoded once, and its KV cache is kept.
+2. **Readout.** Each question branches off that cache with its own options and
+   the boundary `Answer:`. One forward step later, the model's next-token
+   probabilities over the option codes (` A`, ` B`, …) *are* the answer
+   distribution. The typed JSON is built from it in code.
+
+Questions cannot see one another, and adding a question costs one short branch,
+not another pass over the state. Details in [how it works](docs/how-it-works.md).
+
 ## Supported models
 
 The full Qwen family is supported (Qwen3.x text and vision checkpoints, any size).
 The default and most-tested checkpoint is `Qwen/Qwen3.8-27B` on one H100 80 GB.
+Two inference backends are supported: Hugging Face transformers (the default) and
+[SGLang](#serving-through-sglang).
 Vision checkpoints are required for screenshot decisions. Other model families are
 not guaranteed to work.
 
@@ -39,6 +58,40 @@ Open **http://127.0.0.1:8000/**, load the example, and submit. The first request
 downloads and loads the model, which can take several minutes. Use
 `--model /path/to/checkpoint` for a local checkpoint and `--device-map cuda:0` to pin
 a GPU. Not yet published to PyPI; the commands above run this checkout.
+
+### Serving through SGLang
+
+LitJev also runs on [SGLang](https://github.com/sgl-project/sglang). The two-pass
+readout maps onto it directly: the per-question logprobs come from
+`token_ids_logprob`, and SGLang's radix prefix cache shares the prefill without
+any cache surgery. The slow-thinking mode of System Two gains the most, because
+its reasoning is decoded by SGLang's engine instead of transformers' generate loop.
+
+```bash
+uv pip install sglang     # not a litjev dependency; install it yourself
+uv run litjev --model Qwen/Qwen3.8-27B --backend sglang
+```
+
+The API, request and response are unchanged. Text states only for now; screenshot
+decisions still need the transformers backend. Add `--sglang-batch-questions` to
+send a request's questions to the engine in one batch. It is off by default
+because SGLang has open issues that can attach a hidden state to the wrong
+request in a batch (sgl-project/sglang#8066, #4997).
+
+When serving a System Two decision head, check first that SGLang returns the
+hidden state the head was trained on:
+
+```bash
+# where transformers can load the model
+uv run python -m inference.verify --model <model> --layer -1 --reference-out ref.npz
+# where SGLang is installed
+uv run python -m inference.verify --model <model> --layer -1 --reference-in ref.npz \
+  --output verify.json --decision-head head.safetensors
+```
+
+The two backends round differently, so a question whose routing gain sits close
+to `lambda` can go one way on transformers and the other on SGLang. Compare
+numbers only within one backend.
 
 ## Using the API
 
