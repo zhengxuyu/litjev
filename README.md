@@ -18,6 +18,13 @@ model's output head.
 > public Jev schema; internals, confidence values and performance are not identical.
 > Probabilities are not calibrated by default.
 
+## Updates
+
+- **2026-10-01** — LitJev now supports [SGLang](https://github.com/sgl-project/sglang)
+  as an inference backend: `litjev --backend sglang`. See
+  [Serving through SGLang](#serving-through-sglang) for usage.
+  LitJev 现已支持 SGLang 推理后端，使用说明见 [Serving through SGLang](#serving-through-sglang)。
+
 ## How it works
 
 <p align="center">
