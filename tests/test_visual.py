@@ -111,7 +111,7 @@ def test_image_two_forwards_match_full_input_and_pixels_affect_logits():
     text_after = scorer.score("text", schema)
     fresh = TransformersScorer(model, ImageTokenizer()).score("text", schema)
     np.testing.assert_array_equal(text_after[0].logits, fresh[0].logits)
-    assert SchemaDecisionEngine(scorer).decide(state, schema).usage.output_tokens == 0
+    assert SchemaDecisionEngine(scorer, readout="coded").decide(state, schema).usage.output_tokens == 0
 
 
 def test_image_api_and_validation_happen_before_model_load():

@@ -82,6 +82,21 @@ def concentration(probabilities):
     return float(np.clip((count * sum(p * p for p in probabilities) - 1) / (count - 1), 0, 1))
 
 
+# "coded" scores single-token letters; "content" scores each option's own text.
+# They are different quantities on different scales, which is why a head carries
+# the one it was trained under.
+READOUTS = ("coded", "content")
+# Every question goes through the content readout unless a caller says otherwise.
+# `coded` stays reachable, and the paths that reproduce published numbers name it:
+# those numbers were produced by scoring letter codes and would not reproduce
+# under a readout that scores option text.
+DEFAULT_READOUT = "content"
+# How an option's score is read off its `OptionScore`. `sum` is the default; see
+# the note in SchemaDecisionEngine.__init__ for why it is not `mean`.
+RANKED_BY = {"sum": "total", "mean": "mean", "pmi": "pmi"}
+NORMALISATIONS = tuple(RANKED_BY)
+
+
 class SchemaDecisionEngine:
     def __init__(
         self,
@@ -91,6 +106,8 @@ class SchemaDecisionEngine:
         calibration_fitted=False,
         head=None,
         routing=None,
+        readout=DEFAULT_READOUT,
+        normalisation="sum",
     ):
         if not np.isfinite(temperature) or temperature <= 0:
             raise ValueError("Temperature must be finite and positive")
@@ -98,7 +115,38 @@ class SchemaDecisionEngine:
         self.temperature = temperature
         self.model_id = model_id
         self.calibration_fitted = calibration_fitted
+        if readout not in READOUTS:
+            raise ValueError(f"unknown readout {readout!r}; use one of {sorted(READOUTS)}")
+        if normalisation not in NORMALISATIONS:
+            raise ValueError(
+                f"unknown normalisation {normalisation!r}; use one of "
+                f"{sorted(NORMALISATIONS)}")
+        self.readout = readout
+        # Which of the option scores is ranked on, under the content readout. The
+        # default is `sum`: it is the joint log-probability of the option, it was
+        # the most length-neutral of the three within a question, and its
+        # confidence ranked right answers above wrong ones best. Recorded with
+        # every result, because two runs under different normalisations are two
+        # different measurements.
+        self.normalisation = normalisation
+        if readout == "content" and not hasattr(provider, "score_options"):
+            raise NotImplementedError(
+                f"{type(provider).__name__} cannot score option content, which is what "
+                f"the default readout does; pass readout='coded' to serve letter codes. "
+                f"Both shipped backends implement it, so this is a provider that does "
+                f"not, and it is refused here rather than at the first question")
         self.head = head
+        # Refused here rather than at the first prediction. A head fitted to one
+        # readout's distribution and served under the other reads numbers that do
+        # not mean what it learned they meant, and its output looks ordinary.
+        if head is not None:
+            # The engine's model, not the head's own, which would compare a value
+            # against itself and pass whatever it held. "unknown" is the default
+            # and is not a claim about which model this is, so it checks the
+            # readout alone rather than failing every engine built without one.
+            head.metadata.check_serving(
+                self.model_id if model_id != "unknown" else head.metadata.model_id,
+                readout=readout)
         self.routing = routing if routing is not None else RoutingPolicy()
 
     def decide(self, state, schema, routing=None):
@@ -147,7 +195,8 @@ class SchemaDecisionEngine:
         policy = routing if routing is not None else self.routing
         if policy.enabled and self.head is None:
             raise ValueError("Routing to the slow path requires a decision head")
-        scores = self.provider.score(state, schema)
+        readout = self.readout_for(state)
+        scores = self.readout_scores(state, schema)
         if tuple(row.name for row in scores) != schema.names:
             raise RuntimeError("Scorer returned mismatched fields")
         answers, fields, outcomes, escalate = {}, {}, {}, []
@@ -212,6 +261,8 @@ class SchemaDecisionEngine:
                 "forward_calls": forward_calls,
                 "calibration_fitted": self.calibration_fitted,
                 "confidence_method": HEAD_CONFIDENCE_METHOD if self.head else CONFIDENCE_METHOD,
+                "readout": readout,
+                "normalisation": self.normalisation if readout == "content" else None,
                 "routing": {
                     "enabled": policy.enabled,
                     "lambda": policy.lambda_,
@@ -221,3 +272,51 @@ class SchemaDecisionEngine:
                 },
             },
         )
+
+    def readout_for(self, state):
+        """The readout this state is actually read under.
+
+        A screenshot goes through the coded readout whatever the engine is set to:
+        the content prompt is text only, and the image path compiles its slots
+        around the processor's own image tokens. It is returned rather than
+        applied silently, so the diagnostics name the readout that ran.
+        """
+        from litjev.vision import VisualState
+
+        return "coded" if isinstance(state, VisualState) else self.readout
+
+    def readout_scores(self, state, schema):
+        """The fast mode's scores, through the readout `readout_for` names.
+
+        Public because a caller that does not serve through `evaluate` still has
+        to read out the way the engine says, or it records a readout it was not
+        using.
+        """
+        return (self._content_scores(state, schema) if self.readout_for(state) == "content"
+                else self.provider.score(state, schema))
+
+    def _content_scores(self, state, schema):
+        """Read out by scoring each option's own text, with no label between them.
+
+        Returned in the shape the coded readout returns, so everything after this
+        -- the distribution, the head's features, the answer -- is the same code.
+        The scores are log-probabilities rather than logits over a shared
+        vocabulary, which is why a head carries the readout it was trained under:
+        a softmax over these is not the quantity a coded-trained head learned.
+
+        No hidden state: `score_options` does not produce one, and a head would
+        need it. Routing under this readout therefore needs a head trained under
+        it, which the check in `__init__` already requires.
+        """
+        rows = []
+        for name in schema.names:
+            found, rewritten = self.provider.score_options(
+                state, schema[name], content_free=self.normalisation == "pmi")
+            ranked = {score.index: getattr(score, RANKED_BY[self.normalisation])
+                      for score in found}
+            rows.append(RawFieldScores(
+                name, np.array([ranked[i] for i in sorted(ranked)], dtype=np.float64),
+                0, {"system": "one", "readout": "content",
+                    "normalisation": self.normalisation,
+                    "rewritten_options": rewritten}, None))
+        return tuple(rows)

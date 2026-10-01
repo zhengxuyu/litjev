@@ -15,7 +15,7 @@ class FakeLogitProvider:
 
 def test_typed_results_and_separate_diagnostics():
     schema = DecisionSchema({"q1": Choice(criteria={"A": None, "B": None}), "q2": Noul()})
-    engine = SchemaDecisionEngine(FakeLogitProvider(), temperature=2)
+    engine = SchemaDecisionEngine(FakeLogitProvider(), temperature=2, readout="coded")
     evaluation = engine.evaluate("state", schema)
     response = evaluation.result
     assert response.answers["q1"].choice == "A"

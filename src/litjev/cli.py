@@ -15,7 +15,7 @@ def serve():
 
     from litjev.api import create_app
     from litjev.backend import ModelSettings, TransformersScorer
-    from litjev.decision import SchemaDecisionEngine
+    from litjev.decision import DEFAULT_READOUT, READOUTS, SchemaDecisionEngine
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="Qwen/Qwen3.8-27B")
@@ -25,6 +25,11 @@ def serve():
     parser.add_argument("--calibration")
     parser.add_argument("--decision-head", help="Trained head (.safetensors) for /v1/systemtwo")
     parser.add_argument("--lambda", dest="lambda_", type=float, default=0.0)
+    parser.add_argument(
+        "--readout", choices=sorted(READOUTS), default=DEFAULT_READOUT,
+        help="how the fast mode reads its answer. The default scores each option's own "
+             "text; 'coded' scores single-token letter codes, and a head trained under it "
+             "has to be served under it")
     parser.add_argument("--think-budget", type=int, default=0, help="0 disables default routing")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
@@ -69,6 +74,7 @@ def serve():
             args.model,
             profile is not None,
             head=head,
+            readout=args.readout,
             routing=RoutingPolicy(args.lambda_, args.think_budget),
         )
 

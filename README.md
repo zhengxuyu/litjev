@@ -21,19 +21,23 @@ model's output head.
 ## How it works
 
 <p align="center">
-  <img src="docs/images/prefill-readout.svg" alt="Pass one prefills the shared state into a KV cache once; pass two runs one forward step per question and reads the answer as the next-token distribution over option codes at Answer:" width="900">
+  <img src="docs/images/prefill-readout.svg" alt="Prefill the shared state, then append each option's own text after Answer:, sum the log-probabilities of its tokens, and take a softmax over the options" width="900">
 </p>
 
-Every request is answered in two passes, and neither generates text.
+Every request is answered in two steps, and neither generates text.
 
-1. **Prefill.** The shared `state` is encoded once, and its KV cache is kept.
-2. **Readout.** Each question branches off that cache with its own options and
-   the boundary `Answer:`. One forward step later, the model's next-token
-   probabilities over the option codes (` A`, ` B`, …) *are* the answer
-   distribution. The typed JSON is built from it in code.
+1. **Prefill.** The shared `state` opens every prompt. On SGLang its cache is
+   computed once and reused; on transformers each question's option rows share
+   one batched pass.
+2. **Readout.** Each question lists its options as plain text and ends with
+   `Answer:`. Each option's own words are then appended and teacher-forced. The
+   summed log-probability of its tokens is that option's score, and a softmax
+   over the scores is the answer distribution. The typed JSON is built in code.
 
-Questions cannot see one another, and adding a question costs one short branch,
-not another pass over the state. Details in [how it works](docs/how-it-works.md).
+Questions cannot see one another. Scoring the option's words, not a letter in
+front of it, means there is no label token whose prior pulls answers towards
+some positions. `--readout coded` restores the original single-token letter-code
+readout. Details in [how it works](docs/how-it-works.md).
 
 ## Supported models
 
@@ -61,10 +65,11 @@ a GPU. Not yet published to PyPI; the commands above run this checkout.
 
 ### Serving through SGLang
 
-LitJev also runs on [SGLang](https://github.com/sgl-project/sglang). The two-pass
-readout maps onto it directly: the per-question logprobs come from
-`token_ids_logprob`, and SGLang's radix prefix cache shares the prefill without
-any cache surgery. The slow-thinking mode of System Two gains the most, because
+LitJev also runs on [SGLang](https://github.com/sgl-project/sglang), under both
+readouts. The content readout sends each option row as token ids and reads its
+`input_token_logprobs`. The coded readout asks for the code logprobs through
+`token_ids_logprob`. In both, SGLang's radix prefix cache shares the prefill
+without any cache surgery. The slow-thinking mode of System Two gains the most, because
 its reasoning is decoded by SGLang's engine instead of transformers' generate loop.
 
 ```bash
@@ -72,14 +77,18 @@ uv pip install sglang     # not a litjev dependency; install it yourself
 uv run litjev --model Qwen/Qwen3.8-27B --backend sglang
 ```
 
-The API, request and response are unchanged. Text states only for now; screenshot
+The API, request and response are unchanged. Usage reports `input_tokens: 0`
+under the content readout, which does not count prompt tokens yet. Text states only for now; screenshot
 decisions still need the transformers backend. Add `--sglang-batch-questions` to
 send a request's questions to the engine in one batch. It is off by default
 because SGLang has open issues that can attach a hidden state to the wrong
 request in a batch (sgl-project/sglang#8066, #4997).
 
-When serving a System Two decision head, check first that SGLang returns the
-hidden state the head was trained on:
+Before relying on SGLang, check it against transformers. `inference.verify`
+compares the content readout (the two backends must choose the same option, and
+token counts must match) and the hidden state a System Two head reads. SGLang
+returns only the last layer, so heads must be trained on layer -1 to be served
+there.
 
 ```bash
 # where transformers can load the model
@@ -184,7 +193,8 @@ between the two, since LitJev runs a different model; only the contract is share
   [how it works](docs/how-it-works.md#calibration).
 - **System Two (experimental)** — `POST /v1/systemtwo` lets a small trained decision
   head route individual questions to the backbone's own slow thinking when it expects
-  that to pay off. The backbone stays frozen. See [System Two](docs/system-two.md).
+  that to pay off. The backbone stays frozen. Heads are trained under the coded
+  readout, so serve them with `--readout coded`. See [System Two](docs/system-two.md).
 
 ## Documentation
 

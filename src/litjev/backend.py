@@ -5,17 +5,22 @@ mode and reads the same answer boundary again. The backbone is never modified.
 """
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import torch
 from transformers.generation import StoppingCriteria, StoppingCriteriaList
 
+from litjev.content_readout import OptionScore, option_token_ids, summed_logprob
 from litjev.decision import RawFieldScores
 from litjev.prompting import (
     ANSWER_BOUNDARY,
+    CONTENT_FREE_INSTRUCTIONS,
+    build_content_messages,
     build_decision_messages,
     build_thinking_messages,
+    listable_options,
     question_body,
+    unlabelled_suffix,
 )
 from litjev.slots import SLOT_FORMAT, compile_prefix_slots, compile_slots
 from litjev.vision import VisualState, validate_image
@@ -102,6 +107,63 @@ class TransformersScorer:
     def score(self, state, schema):
         with self.lock, torch.inference_mode():
             return self._score(state, schema)
+
+    def score_options(self, state, question, content_free=True):
+        """Score each option by its own text, with no label between the two.
+
+        One batched prefill of k rows sharing the prefix, teacher-forced, nothing
+        sampled. Returns `(scores, rewritten)`: an `OptionScore` per option
+        carrying the summed log-probability, the token count the normalisations
+        divide by, and -- when `content_free` -- the same option's score after a
+        question with nothing in it to answer, which is what PMI subtracts; and
+        how many of this question's options had to be put on one line.
+
+        The count is returned rather than left on the scorer. As instance state
+        it was overwritten by every later call, including by the content-free
+        pass two lines down, so what a caller read afterwards was whatever the
+        last question happened to need.
+        """
+        with self.lock, torch.inference_mode():
+            scored, rewritten = self._score_options(state, question)
+            if not content_free:
+                return scored, rewritten
+            blank = question.model_copy(
+                update={"instructions": CONTENT_FREE_INSTRUCTIONS})
+            priors, _ = self._score_options(state, blank)
+            return [replace(score, prior=prior.total)
+                    for score, prior in zip(scored, priors, strict=True)], rewritten
+
+    def _score_options(self, state, question):
+        prefix = self.tokenizer.apply_chat_template(
+            build_content_messages(state), tokenize=False,
+            add_generation_prompt=True, enable_thinking=False,
+        ) + unlabelled_suffix(question)
+        prefix_ids = self.tokenizer.encode(prefix, add_special_tokens=False)
+        # The same rewriting the listing does, from the same function, because the
+        # two disagreeing about an option's text is the fault being avoided.
+        options, rewritten = listable_options(question)
+        # The separating space is part of the option, not of the prompt: BPE binds
+        # it to the following word, so a prompt ending in one cannot be a prefix of
+        # the joint encoding.
+        per_option = [option_token_ids(self.tokenizer, prefix, " " + text) for text in options]
+
+        device = self.model.get_input_embeddings().weight.device
+        rows = [prefix_ids + ids for ids in per_option]
+        width = max(len(row) for row in rows)
+        pad = self._pad_id()
+        # Left-padding would move the prefix, and the prefix is where every
+        # option's first token is predicted from.
+        input_ids = torch.tensor([row + [pad] * (width - len(row)) for row in rows],
+                                 device=device)
+        attention = torch.tensor([[1] * len(row) + [0] * (width - len(row)) for row in rows],
+                                 device=device)
+        logits = self.model(input_ids=input_ids, attention_mask=attention).logits
+        logprobs = torch.log_softmax(logits.float(), dim=-1)
+        return [
+            OptionScore(index=index, text=text, tokens=len(ids),
+                        total=summed_logprob(logprobs[index], len(prefix_ids), ids))
+            for index, (text, ids) in enumerate(zip(options, per_option, strict=True))
+        ], rewritten
 
     def think(self, state, schema, names, budget):
         """Slow path for the named questions: backbone thinking, then the same readout."""

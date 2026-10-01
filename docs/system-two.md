@@ -56,8 +56,10 @@ uv run litjev-train-head records-*.npz --output decision-head.safetensors \
   --report decision-head-report.json --holdout-fraction 0.25 --select-layers 1
 
 # 3. Serve with routing.
+#    The head is trained on coded-readout features, so it is served under that
+#    readout; the default content readout refuses it rather than misread it.
 uv run litjev --model Qwen/Qwen3.8-27B --decision-head decision-head.safetensors \
-  --lambda 0.05 --think-budget 512
+  --readout coded --lambda 0.05 --think-budget 512
 ```
 
 The report lists per-layer AUROC for predicting fast-answer correctness, the chosen

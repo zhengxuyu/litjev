@@ -45,13 +45,22 @@ class _HttpEngine:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-    def generate(self, prompt, sampling_params=None, return_logprob=False,
-                 token_ids_logprob=None, return_hidden_states=False):
-        payload = {"text": prompt, "sampling_params": sampling_params,
+    def generate(self, prompt=None, sampling_params=None, return_logprob=False,
+                 token_ids_logprob=None, return_hidden_states=False, input_ids=None,
+                 logprob_start_len=None):
+        payload = {"sampling_params": sampling_params,
                    "return_logprob": return_logprob,
                    "return_hidden_states": return_hidden_states}
+        # The content readout sends token ids, because re-tokenising its rows here
+        # could merge across the boundary it has just proved separable.
+        if input_ids is not None:
+            payload["input_ids"] = input_ids
+        else:
+            payload["text"] = prompt
         if token_ids_logprob is not None:
             payload["token_ids_logprob"] = token_ids_logprob
+        if logprob_start_len is not None:
+            payload["logprob_start_len"] = logprob_start_len
         request = urllib.request.Request(
             f"{self.base_url}/generate",
             data=json.dumps(payload).encode(),

@@ -13,7 +13,7 @@ def test_sequential_uses_ten_separate_single_question_calls():
             calls.append(schema.names)
             return tuple(RawFieldScores(k, np.zeros(2), 10) for k in schema)
 
-    engine = SchemaDecisionEngine(Provider())
+    engine = SchemaDecisionEngine(Provider(), readout="coded")
     schema = DecisionSchema(
         {
             f"q{i}": Choice(instructions=f"Question {i}", criteria={"A": None, "B": None})
